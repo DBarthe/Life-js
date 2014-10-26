@@ -413,10 +413,10 @@ Display.prototype._drawBackground = function() {
 
 // The draw() method refreshs the canvas
 Display.prototype.draw = function() {
-    this.visibleCellsX = Math.floor(this.world.width * this.zoom);
-    this.visibleCellsY = Math.floor(this.world.height * this.zoom);
-    this.cellWidth = intdiv(this.canvasWidth, this.visibleCellsX);
-    this.cellHeight = intdiv(this.canvasHeight, this.visibleCellsY);
+    this.visibleCellsX = intdiv(this.world.width, this.zoom);
+    this.visibleCellsY = intdiv(this.world.height, this.zoom);
+    this.cellWidth = Math.ceil(this.canvasWidth / this.visibleCellsX);
+    this.cellHeight = Math.ceil(this.canvasHeight / this.visibleCellsY);
     this.startX = this.cameraX - intdiv(this.visibleCellsX, 2);
     this.startY = this.cameraY - intdiv(this.visibleCellsY, 2);
 
@@ -471,8 +471,8 @@ Display.prototype.getCameraPosition = function() {
 
 // The translateCamera() method applys a translation (x,y) to the camera's position
 Display.prototype.translateCamera = function(x, y) {
-    this.cameraX += x;
-    this.cameraY += y;
+    this.cameraX += x * Math.max(1, intdiv(this.visibleCellsX, 10));
+    this.cameraY += y * Math.max(1, intdiv(this.visibleCellsY, 10));
 };
 
 // The setCameraPosition() method sets the camera's center position to the map center.
@@ -490,13 +490,13 @@ Display.prototype.getZoom = function(percentage) {
 // The setZoom() method sets the zoom to an absolute value in percentage.
 Display.prototype.setZoom = function(percentage) {
     var z = percentage / 100;
-    this.zoom = z > 0 ? z : 0.001; // arbitrary value, change it if necessary.
+    this.zoom = Math.max(1.0, z);
 
 };
 
-// The zoom() method increases or decrease the zoom according to the given points
-Display.prototype.zoom = function(points) {
-    this.setZoom(this.getZoom() + points)
+// The increaseZoom() method increases or decrease the zoom according to the given points
+Display.prototype.increaseZoom = function(points) {
+    this.setZoom(this.getZoom() * (1 + points / 5));
 };
 
 // The worldCoordFromMousePos() method returns the world coordinate of the cells
@@ -526,18 +526,48 @@ function UI(canvas, world, display, process) {
     // Buttons
     this.playButton = document.getElementById('uiPlayButton');
     this.stopButton = document.getElementById('uiStopButton');
-    this.bind();
+
+    // Events
+    this.events = {
+        zoomPlus: false,
+        zoomMinus: false,
+
+        arrowUp: false,
+        arrowDown: false,
+        arrowLeft: false,
+        arrowRight: false,
+
+        rightClick: false,
+    };
+    this.mousePosition = null;
+    this.updateEventsTimer = null;
+
+    this._bind();
   }
 
-UI.prototype.bind = function() {
+UI.prototype._bind = function() {
     var that = this;
 
     // Events listeners
-    canvas.addEventListener('click', function (evt) { that.clickEvent(evt); }, false);
+    canvas.addEventListener('mousedown', function (evt) {
+        that.mouseClickEvent(evt, true); }, false);
+    canvas.addEventListener('mouseup', function (evt) {
+        that.mouseClickEvent(evt, false); }, false);
+    canvas.addEventListener('mouseout', function (evt) {
+        that.mouseClickEvent(evt, false); }, false);
+    canvas.addEventListener('mousemove', function (evt) {
+        that.mouseMoveEvent(evt); }, false);
+
+    window.addEventListener('keydown', function (evt) {
+        that.keyboardEvent(evt, true); }, false);
+    window.addEventListener('keyup', function (evt) {
+        that.keyboardEvent(evt, false); }, false);
 
     // Buttons    
     this.playButton.onclick = function () { that.playButtonClick(); };
     this.stopButton.onclick = function () { that.stopButtonClick(); };
+
+    this.updateEventsTimer = window.setInterval(function () { that.updateEvents();}, 50);
 };
 
 // The _getMousePosition() private method returns the position relative
@@ -565,10 +595,69 @@ UI.prototype.stopButtonClick = function() {
     this.playButton.value = 'play';
 };
 
-UI.prototype.clickEvent = function(evt) {
-    var mousePos = this._getMousePosition(evt);
-    var worldPos = display.worldCoordFromMousePos(mousePos.x, mousePos.y);
-    this.world.setTile(worldPos.x, worldPos.y, true);
+UI.prototype.mouseClickEvent = function(evt, isDown) {
+    this.events.rightClick = isDown;
+    this.mousePosition = this._getMousePosition(evt);
+};
+
+UI.prototype._mouseSpreadsCells = function() {
+    if (this.events.rightClick) {
+        var worldPos = display.worldCoordFromMousePos(
+            this.mousePosition.x, this.mousePosition.y);
+        this.world.setTile(worldPos.x, worldPos.y, true);
+    }
+};
+
+UI.prototype.mouseMoveEvent = function (evt) {
+    this.mousePosition = this._getMousePosition(evt);
+    this._mouseSpreadsCells();
+};
+
+UI.prototype.updateEvents = function() {
+    if      (this.events.zoomPlus)  this.display.increaseZoom(1);
+    else if (this.events.zoomMinus) this.display.increaseZoom(-1);
+
+    if (this.events.arrowLeft)  this.display.translateCamera(-1, 0);
+    if (this.events.arrowRight) this.display.translateCamera(1, 0);
+    if (this.events.arrowUp)    this.display.translateCamera(0, -1);
+    if (this.events.arrowDown)  this.display.translateCamera(0, 1);
+
+    this._mouseSpreadsCells();
+};
+
+UI.prototype.keyboardEvent = function(evt, isDown) {
+    if (evt.defaultPrevented) {
+        return ;
+    }
+
+    switch (evt.key) {
+        // camera zoom
+        case "+":
+            this.events.zoomPlus = isDown;
+            break;
+        case "-":
+            this.events.zoomMinus = isDown;
+            break;
+
+        // camera moves
+        case "Left":
+            this.events.arrowLeft = isDown;
+            break;
+        case "Right":
+            this.events.arrowRight = isDown;
+            break;
+        case "Up":
+            this.events.arrowUp = isDown;
+            break;
+        case "Down":
+            this.events.arrowDown = isDown;
+            break;
+
+        default:
+            return;
+    }
+
+    evt.preventDefault();
 };
 
 var canvas = document.getElementById('canvas');
@@ -587,10 +676,8 @@ window.requestAnimFrame = (function() {
         };
 })();
 
-// Launch the asynchronous 'game-loop'
+// Launch the 'game-loop'
 window.requestAnimFrame(function callback(timestamp) {
     process.run(timestamp);
     window.requestAnimFrame(callback);
-})
-
-
+});
