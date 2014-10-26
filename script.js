@@ -285,6 +285,11 @@ function Process(world, display) {
     this.lastGeneration = null;
 }
 
+// The isPlaying() methods return true if the game is playing.
+Process.prototype.isPlaying = function() {
+    return this.playing;
+};
+
 // The play() method starts the game.
 Process.prototype.play = function() {
     this.playing = true;
@@ -364,8 +369,8 @@ Process.prototype.run = function(timestamp) {
         - display additional layers
         - resize canvnas and set others attributes
  */
-function Display(canvas_id, world) {
-    this.canvas = document.getElementById(canvas_id);
+function Display(canvas, world) {
+    this.canvas = canvas;
     this.context = this.canvas.getContext('2d');
 
     this.world = world;
@@ -386,6 +391,14 @@ function Display(canvas_id, world) {
     this.livingCellsColors[Tile.MetaState.willDie]  = 'red';
     this.livingCellsColors[Tile.MetaState.shortLived]  = 'yellow';
     this.livingCellsColors[Tile.MetaState.longLived]  = 'blue';
+
+    // Draw informations, sizes, and positions
+    this.visibleCellsX = null;
+    this.visibleCellsY = null;
+    this.cellWidth = null;
+    this.cellHeight = null;
+    this.startX = null;
+    this.startY = null;
 }
 
 // The _drawBackground() private method clear the
@@ -400,29 +413,24 @@ Display.prototype._drawBackground = function() {
 
 // The draw() method refreshs the canvas
 Display.prototype.draw = function() {
-    var visibleCellsX = Math.floor(this.world.width * this.zoom);
-    var visibleCellsY = Math.floor(this.world.height * this.zoom);
-
-    var cellWidth = intdiv(this.canvasWidth, visibleCellsX);
-    var cellHeight = intdiv(this.canvasHeight, visibleCellsY);
-
-    var startX = this.cameraX - intdiv(visibleCellsX, 2);
-    //var endX = startX + visibleCellsX;
-
-    var startY = this.cameraY - intdiv(visibleCellsY, 2);
-    //var endY = startY + visibleCellsY;
+    this.visibleCellsX = Math.floor(this.world.width * this.zoom);
+    this.visibleCellsY = Math.floor(this.world.height * this.zoom);
+    this.cellWidth = intdiv(this.canvasWidth, this.visibleCellsX);
+    this.cellHeight = intdiv(this.canvasHeight, this.visibleCellsY);
+    this.startX = this.cameraX - intdiv(this.visibleCellsX, 2);
+    this.startY = this.cameraY - intdiv(this.visibleCellsY, 2);
 
     this._drawBackground();
 
-    for (var x = 0; x < visibleCellsX; x++) {
-        for (var y = 0; y < visibleCellsY; y++) {
-            var tile = this.world.getTile(startX + x, startY + y);
+    for (var x = 0; x < this.visibleCellsX; x++) {
+        for (var y = 0; y < this.visibleCellsY; y++) {
+            var tile = this.world.getTile(this.startX + x, this.startY + y);
             if (tile.isAlive()) {
                 this.context.beginPath();
                 this.context.fillStyle = this.livingCellsColors[tile.getMetaState()];
                 this.context.rect(
-                    x * cellWidth, y * cellHeight,
-                    cellWidth, cellHeight
+                    x * this.cellWidth, y * this.cellHeight,
+                    this.cellWidth, this.cellHeight
                 );
                 this.context.fill();
                 this.context.closePath();
@@ -491,6 +499,16 @@ Display.prototype.zoom = function(points) {
     this.setZoom(this.getZoom() + points)
 };
 
+// The worldCoordFromMousePos() method returns the world coordinate of the cells
+// that corresponds to the mouse position on the canvas.
+Display.prototype.worldCoordFromMousePos = function(mouseX, mouseY) {
+    var worldX = mod(this.startX + intdiv(mouseX, this.cellWidth), this.world.getWidth());
+    var worldY = mod(this.startY + intdiv(mouseY, this.cellHeight), this.world.getHeight());
+    return {
+        x: worldX,
+        y: worldY
+    };
+}
 
 /**
  * Class UI
@@ -499,18 +517,65 @@ Display.prototype.zoom = function(points) {
  *      - offer a control panel to the user
  *      - switch user commands to others instances (world, display, ...)
  */
-function UI() {
-}
+function UI(canvas, world, display, process) {
+    this.canvas = canvas;
+    this.world = world;
+    this.display = display;
+    this.process = process;
 
+    // Buttons
+    this.playButton = document.getElementById('uiPlayButton');
+    this.stopButton = document.getElementById('uiStopButton');
+    this.bind();
+  }
+
+UI.prototype.bind = function() {
+    var that = this;
+
+    // Events listeners
+    canvas.addEventListener('click', function (evt) { that.clickEvent(evt); }, false);
+
+    // Buttons    
+    this.playButton.onclick = function () { that.playButtonClick(); };
+    this.stopButton.onclick = function () { that.stopButtonClick(); };
+};
+
+// The _getMousePosition() private method returns the position relative
+// to the canvas of the mouse.
+UI.prototype._getMousePosition = function(evt) {
+    var rect = this.canvas.getBoundingClientRect();
+    return {
+        x: evt.clientX - rect.left,
+        y: evt.clientY - rect.top
+    };
+};
+
+UI.prototype.playButtonClick = function() {
+    if (this.process.isPlaying()) {
+        this.process.pause();
+        this.playButton.value = 'play';
+    } else {
+        this.process.play();
+        this.playButton.value = 'pause';
+    }
+};
+
+UI.prototype.stopButtonClick = function() {
+    this.process.stop();
+    this.playButton.value = 'play';
+};
+
+UI.prototype.clickEvent = function(evt) {
+    var mousePos = this._getMousePosition(evt);
+    var worldPos = display.worldCoordFromMousePos(mousePos.x, mousePos.y);
+    this.world.setTile(worldPos.x, worldPos.y, true);
+};
+
+var canvas = document.getElementById('canvas');
 var world = new World();
-
-world.setTile(4,4,true);
-world.setTile(4,5,true);
-world.setTile(4,6,true);
-
-
-var display = new Display('canvas', world);
+var display = new Display(canvas, world);
 var process = new Process(world, display);
+var toto = new UI(canvas, world, display, process);
 
 // Browsers compatibility.
 window.requestAnimFrame = (function() {
