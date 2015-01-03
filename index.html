@@ -1,13 +1,26 @@
-<!DOCTYPE html+>
+<!DOCTYPE html>
 <html>
-	<head>
-	</head>
-	<body>
-		<canvas id="canvas"></canvas>
-		<br />
-		<input id="uiPlayButton" type="button" value="play" />
-		<input id="uiStopButton" type="button" value="stop" />
-		<script src='script.js' type='text/javascript'></script>
-	</body>
+  <head>
+  </head>
+  <body>
+
+    <div id="player">
+      <canvas id="canvas"></canvas>
+      <br />
+      <div id="ui">
+        <input id="uiPlayButton" type="button" value="play" />
+        <input id="uiStopButton" type="button" value="stop" />
+      </div>
+    </div>
+
+    <div id="help">
+      <p>Click and slide on the canvas to create news cells.</p>
+      <p>Use keys '+' and '-' to zoom.</p>
+      <p>Use arrows to move the camera.</p>
+    </div>
+
+
+    <script src='script.js' type='text/javascript'></script>
+  </body>
 
 </html>

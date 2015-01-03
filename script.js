@@ -664,7 +664,7 @@ var canvas = document.getElementById('canvas');
 var world = new World();
 var display = new Display(canvas, world);
 var process = new Process(world, display);
-var toto = new UI(canvas, world, display, process);
+var ui = new UI(canvas, world, display, process);
 
 // Browsers compatibility.
 window.requestAnimFrame = (function() {
