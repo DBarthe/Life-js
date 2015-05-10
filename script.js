@@ -630,26 +630,26 @@ UI.prototype.keyboardEvent = function(evt, isDown) {
         return ;
     }
 
-    switch (evt.key) {
+    switch (evt.keyCode) {
         // camera zoom
-        case "+":
+        case 107:
             this.events.zoomPlus = isDown;
             break;
-        case "-":
+        case 109:
             this.events.zoomMinus = isDown;
             break;
 
         // camera moves
-        case "Left":
+        case 37:
             this.events.arrowLeft = isDown;
             break;
-        case "Right":
+        case 39:
             this.events.arrowRight = isDown;
             break;
-        case "Up":
+        case 38:
             this.events.arrowUp = isDown;
             break;
-        case "Down":
+        case 40:
             this.events.arrowDown = isDown;
             break;
 
